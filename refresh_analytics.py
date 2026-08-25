@@ -31,11 +31,13 @@ from pathlib import Path
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 CLIENT_ID = "1fec8e78-bce4-4aaf-ab1b-5451cc387264"  # Teams Desktop — pre-authorized
 SCOPES = "Files.ReadWrite.All Sites.ReadWrite.All offline_access"
-# Use workspace-relative path in Agent Hub sandbox, standard path locally
-_WORKSPACE = Path("/home/agent/workspace")
+# In Agent Hub sandbox the repo is cloned to /home/agent/workspace/tme-analytics-bot/
+# and only that subdirectory is writable, so store the token there.
+_REPO_DIR = Path(__file__).parent
+_SANDBOX_TOKEN = _REPO_DIR / "token.json"
 TOKEN_FILE = (
-    _WORKSPACE / "token.json"
-    if _WORKSPACE.exists()
+    _SANDBOX_TOKEN
+    if _SANDBOX_TOKEN.exists() or Path("/home/agent/workspace").exists()
     else Path.home() / ".config" / "microsoft-graph" / "token.json"
 )
 
