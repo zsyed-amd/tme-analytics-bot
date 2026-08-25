@@ -40,7 +40,7 @@ TOKEN_FILE = (
 )
 
 LIST_SITE_ID = "amdcloud-my.sharepoint.com,fc60e54f-ec1b-469b-93c2-d79471b2a67c,cd704538-2cf6-49ae-a1a4-4343ec2e3b38"
-LIST_ID = "977e2de1-9663-40ea-bbd8-d4fc80a63a11"
+LIST_ID = "dc498da1-bb6b-4935-aa2a-07ab08e56486"  # TME Content analytics
 COLLATERAL_SITE_ID = "amdcloud.sharepoint.com,8a79450f-1df2-4861-8fe8-73ceec656271,ea2697f2-a242-4280-988a-09bdedf5919c"
 
 

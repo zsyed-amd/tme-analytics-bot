@@ -13,7 +13,7 @@ chmod 600 ~/.config/microsoft-graph/token.json
 
 **Step 2 — Run the refresh script:**
 ```bash
-python3 refresh_analytics.py
+cd /home/agent/workspace/tme-analytics-bot && python3 refresh_analytics.py
 ```
 
 No pip installs needed — stdlib only.
