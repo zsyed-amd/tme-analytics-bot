@@ -31,7 +31,13 @@ from pathlib import Path
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 CLIENT_ID = "1fec8e78-bce4-4aaf-ab1b-5451cc387264"  # Teams Desktop — pre-authorized
 SCOPES = "Files.ReadWrite.All Sites.ReadWrite.All offline_access"
-TOKEN_FILE = Path.home() / ".config" / "microsoft-graph" / "token.json"
+# Use workspace-relative path in Agent Hub sandbox, standard path locally
+_WORKSPACE = Path("/home/agent/workspace")
+TOKEN_FILE = (
+    _WORKSPACE / "token.json"
+    if _WORKSPACE.exists()
+    else Path.home() / ".config" / "microsoft-graph" / "token.json"
+)
 
 LIST_SITE_ID = "amdcloud-my.sharepoint.com,fc60e54f-ec1b-469b-93c2-d79471b2a67c,cd704538-2cf6-49ae-a1a4-4343ec2e3b38"
 LIST_ID = "977e2de1-9663-40ea-bbd8-d4fc80a63a11"
