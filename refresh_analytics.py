@@ -14,6 +14,7 @@ exchange it for a fresh access token automatically.
 
 import sys
 import os
+import base64
 import json
 import datetime
 import urllib.parse
@@ -59,6 +60,11 @@ class TokenClient:
     def __init__(self):
         self._access_token = ""
         self._refresh_token = os.environ.get("MS_REFRESH_TOKEN", "")
+        # Agent Hub passes the token base64-encoded (copy-safe: no periods to corrupt)
+        if not self._refresh_token:
+            b64 = os.environ.get("MS_REFRESH_TOKEN_B64", "").strip()
+            if b64:
+                self._refresh_token = base64.b64decode(b64).decode()
         self._expires_at = 0.0
         # Env override, else constant; token file (if present) can still override below
         self._tenant_id = os.environ.get("MS_TENANT_ID", TENANT_ID)
@@ -250,17 +256,17 @@ def main():
         views_7d, unique_views = get_7d_analytics(client, drive_id, drive_item_id)
 
         update_fields = {
-            "Views_x0020_last_x0020_7d_x0029_": views_7d,
-            "Unique_x0020_Views": unique_views,
+            "Views_x0028_last7d_x0029_": views_7d,
+            "UniqueViews": unique_views,
             "LastRefreshed": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
 
         # Only update 30d for rows that already had a value
-        has_30d = fields.get("Views_x0020_last_x0020_30d_x0029_") is not None
+        has_30d = fields.get("Views_x0028_last30d_x0029_") is not None
         if has_30d:
             v30 = get_30d_views(client, drive_id, drive_item_id)
             if v30 is not None:
-                update_fields["Views_x0020_last_x0020_30d_x0029_"] = v30
+                update_fields["Views_x0028_last30d_x0029_"] = v30
 
         if views_7d == 0 and unique_views == 0:
             stats["no_analytics"] += 1
@@ -270,7 +276,7 @@ def main():
             update_fields
         )
         if ok:
-            v30_str = f" 30d:{update_fields.get('Views_x0020_last_x0020_30d_x0029_', '—')}" if has_30d else ""
+            v30_str = f" 30d:{update_fields.get('Views_x0028_last30d_x0029_', '—')}" if has_30d else ""
             print(f"  [{doc_name}] Updated — 7d:{views_7d} unique:{unique_views}{v30_str}")
             stats["updated"] += 1
         else:
