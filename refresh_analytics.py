@@ -183,6 +183,45 @@ def get_7d_analytics(client, drive_id, item_id):
     return access.get("actionCount", 0), access.get("actorCount", 0)
 
 
+def categorize_from_path(folder_path):
+    """Best-effort group from the file's folder path. Curated groups
+    (Maintained / One-off / AAI Day '26) aren't folder-derivable, so those
+    default to 'Uncategorized' for a human to tag."""
+    p = folder_path or ""
+    if "Training Modules/Workshop" in p:
+        return "TME Workshop"
+    if "Performance_Briefs" in p or "Performance Briefs" in p:
+        return "Performance Briefs"
+    if "HW PM Collateral" in p:
+        return "HW PM Collateral"
+    if "SW PM Collateral" in p:
+        return "SW PM Collateral"
+    if "Recordings" in p:
+        return "Recordings"
+    if "Product Management" in p or "Presentations" in p:
+        return "Instinct SW Product"
+    return "Uncategorized"
+
+
+def get_item_meta(client, drive_id, item_id):
+    """Fetch webUrl (evergreen file link), last-modified date, owner (createdBy),
+    and a folder-derived category."""
+    data, _ = client.get(
+        f"/drives/{drive_id}/items/{item_id}"
+        "?$select=webUrl,lastModifiedDateTime,createdBy,parentReference"
+    )
+    if not data:
+        return None
+    owner = data.get("createdBy", {}).get("user", {}).get("displayName", "")
+    folder_path = data.get("parentReference", {}).get("path", "")
+    return {
+        "webUrl": data.get("webUrl", ""),
+        "lastModified": data.get("lastModifiedDateTime", "")[:10],
+        "owner": owner,
+        "category": categorize_from_path(folder_path),
+    }
+
+
 def get_30d_views(client, drive_id, item_id):
     end = datetime.datetime.utcnow()
     start = end - datetime.timedelta(days=30)
@@ -261,12 +300,26 @@ def main():
             "LastRefreshed": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
 
-        # Only update 30d for rows that already had a value
-        has_30d = fields.get("Views_x0028_last30d_x0029_") is not None
-        if has_30d:
-            v30 = get_30d_views(client, drive_id, drive_item_id)
-            if v30 is not None:
-                update_fields["Views_x0028_last30d_x0029_"] = v30
+        # Fill Location / LastUpdated / Owner / Category only when currently
+        # empty (preserves hand-curated values on existing rows).
+        if not fields.get("Location") or not fields.get("LastUpdated") \
+                or not fields.get("Owner_x007c_Updatedby") \
+                or not fields.get("Category"):
+            meta = get_item_meta(client, drive_id, drive_item_id)
+            if meta:
+                if not fields.get("Location") and meta["webUrl"]:
+                    update_fields["Location"] = meta["webUrl"]
+                if not fields.get("LastUpdated") and meta["lastModified"]:
+                    update_fields["LastUpdated"] = meta["lastModified"]
+                if not fields.get("Owner_x007c_Updatedby") and meta["owner"]:
+                    update_fields["Owner_x007c_Updatedby"] = meta["owner"]
+                if not fields.get("Category") and meta["category"]:
+                    update_fields["Category"] = meta["category"]
+
+        # Fetch 30d views for every tracked row.
+        v30 = get_30d_views(client, drive_id, drive_item_id)
+        if v30 is not None:
+            update_fields["Views_x0028_last30d_x0029_"] = v30
 
         if views_7d == 0 and unique_views == 0:
             stats["no_analytics"] += 1
@@ -276,7 +329,7 @@ def main():
             update_fields
         )
         if ok:
-            v30_str = f" 30d:{update_fields.get('Views_x0028_last30d_x0029_', '—')}" if has_30d else ""
+            v30_str = f" 30d:{update_fields['Views_x0028_last30d_x0029_']}" if "Views_x0028_last30d_x0029_" in update_fields else ""
             print(f"  [{doc_name}] Updated — 7d:{views_7d} unique:{unique_views}{v30_str}")
             stats["updated"] += 1
         else:
