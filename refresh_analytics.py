@@ -30,6 +30,7 @@ from pathlib import Path
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 CLIENT_ID = "1fec8e78-bce4-4aaf-ab1b-5451cc387264"  # Teams Desktop — pre-authorized
+TENANT_ID = "3dd8961f-e488-4e60-8e11-a82d994e183d"  # AMD tenant — constant, used when no token file
 SCOPES = "Files.ReadWrite.All Sites.ReadWrite.All offline_access"
 # In Agent Hub sandbox the repo is cloned to /home/agent/workspace/tme-analytics-bot/
 # and only that subdirectory is writable, so store the token there.
@@ -59,14 +60,16 @@ class TokenClient:
         self._access_token = ""
         self._refresh_token = os.environ.get("MS_REFRESH_TOKEN", "")
         self._expires_at = 0.0
-        self._tenant_id = ""
+        # Env override, else constant; token file (if present) can still override below
+        self._tenant_id = os.environ.get("MS_TENANT_ID", TENANT_ID)
         self._ctx = _ssl_ctx()
         self._load_file()
 
     def _load_file(self):
         if TOKEN_FILE.exists():
             d = json.loads(TOKEN_FILE.read_text())
-            self._tenant_id = d.get("tenant_id", "")
+            if d.get("tenant_id"):
+                self._tenant_id = d["tenant_id"]
             self._access_token = d.get("access_token", "")
             self._expires_at = d.get("expires_at", 0.0)
             # Env var refresh token takes priority (Agent Hub credential)

@@ -44,6 +44,10 @@ Copy the output — this is your `MS_REFRESH_TOKEN`.
 |---|---|
 | `MS_REFRESH_TOKEN` | *(the refresh token from step 2)* |
 
+The script reads `MS_REFRESH_TOKEN` from the environment and falls back to the constant
+AMD tenant ID, so no token file is written in the sandbox. (Optionally set `MS_TENANT_ID`
+to override the tenant.)
+
 ### 5. Schedule
 
 - Cron: `0 8 1 * *` (8 AM UTC, 1st of every month)
