@@ -222,6 +222,16 @@ def get_item_meta(client, drive_id, item_id):
     }
 
 
+def get_alltime(client, drive_id, item_id):
+    """Lifetime analytics: returns (views, unique_users) over the file's whole
+    history via the allTime endpoint."""
+    data, _ = client.get(f"/drives/{drive_id}/items/{item_id}/analytics/allTime")
+    if not data:
+        return 0, 0
+    access = data.get("access", {})
+    return access.get("actionCount", 0), access.get("actorCount", 0)
+
+
 def get_30d_views(client, drive_id, item_id):
     end = datetime.datetime.utcnow()
     start = end - datetime.timedelta(days=30)
@@ -259,6 +269,12 @@ def main():
     items = data.get("value", [])
     print(f"Found {len(items)} list item(s).\n")
 
+    # Known column internal names — used to drop any field whose column
+    # hasn't been created in the list UI yet (e.g. ViewsLifetime), so a
+    # missing column can't fail the whole PATCH.
+    cols_data, _ = client.get(f"/sites/{LIST_SITE_ID}/lists/{LIST_ID}/columns?$select=name")
+    known_cols = {c.get("name") for c in (cols_data or {}).get("value", [])}
+
     stats = {"updated": 0, "resolved": 0, "no_analytics": 0, "errors": []}
 
     for item in items:
@@ -292,11 +308,13 @@ def main():
                 stats["errors"].append(f"{doc_name}: not found on collateral site")
                 continue
 
-        views_7d, unique_views = get_7d_analytics(client, drive_id, drive_item_id)
+        views_7d, _ = get_7d_analytics(client, drive_id, drive_item_id)
+        life_views, life_unique = get_alltime(client, drive_id, drive_item_id)
 
         update_fields = {
             "Views_x0028_last7d_x0029_": views_7d,
-            "UniqueViews": unique_views,
+            "UniqueViews": life_unique,          # lifetime unique users
+            "ViewsLifetime": life_views,         # lifetime total views
             "LastRefreshed": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
 
@@ -321,8 +339,12 @@ def main():
         if v30 is not None:
             update_fields["Views_x0028_last30d_x0029_"] = v30
 
-        if views_7d == 0 and unique_views == 0:
+        if views_7d == 0 and life_views == 0:
             stats["no_analytics"] += 1
+
+        # Drop any field whose column doesn't exist in the list yet.
+        if known_cols:
+            update_fields = {k: v for k, v in update_fields.items() if k in known_cols}
 
         ok, err = client.patch(
             f"/sites/{LIST_SITE_ID}/lists/{LIST_ID}/items/{item_id}/fields",
@@ -330,7 +352,8 @@ def main():
         )
         if ok:
             v30_str = f" 30d:{update_fields['Views_x0028_last30d_x0029_']}" if "Views_x0028_last30d_x0029_" in update_fields else ""
-            print(f"  [{doc_name}] Updated — 7d:{views_7d} unique:{unique_views}{v30_str}")
+            life_str = f" life:{update_fields['ViewsLifetime']}" if "ViewsLifetime" in update_fields else ""
+            print(f"  [{doc_name}] Updated — 7d:{views_7d} unique(lt):{life_unique}{v30_str}{life_str}")
             stats["updated"] += 1
         else:
             print(f"  [{doc_name}] ERROR: {err}")
